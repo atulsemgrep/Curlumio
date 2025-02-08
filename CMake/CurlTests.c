@@ -130,10 +130,7 @@ int main(void)
 #endif
 int main(void)
 {
-  if(sizeof(bool *))
-    return 0;
-  ;
-  return 0;
+  return (int)sizeof(bool *);
 }
 #endif
 
