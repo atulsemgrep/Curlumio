@@ -116,7 +116,6 @@ int main(void)
     return 0;
   if(sizeof(in_addr_t))
     return 0;
-  ;
   return 0;
 }
 #endif
@@ -179,7 +178,6 @@ int main(void)
   /* IoctlSocket source code */
   if(0 != IoctlSocket(0, 0, 0))
     return 1;
-  ;
   return 0;
 }
 #endif
@@ -283,7 +281,6 @@ int main(void)
 {
   if(0 != setsockopt(0, SOL_SOCKET, SO_NONBLOCK, 0, 0))
     return 1;
-  ;
   return 0;
 }
 #endif
