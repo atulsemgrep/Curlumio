@@ -202,9 +202,9 @@ if(WIN32)
     set(ENABLE_UNICODE ON)
   endif()
   if(ENABLE_UNICODE)
-    add_definitions("-DUNICODE" "-D_UNICODE")
+    set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS "UNICODE" "_UNICODE")
     if(MINGW)
-      add_compile_options("-municode")
+      set_property(DIRECTORY APPEND PROPERTY COMPILE_OPTIONS "-municode")
     endif()
   endif()
 
@@ -212,7 +212,7 @@ if(WIN32)
 
   set(CURL_TARGET_WINDOWS_VERSION "" CACHE STRING "Minimum target Windows version as hex string")
   if(CURL_TARGET_WINDOWS_VERSION)
-    add_definitions("-D_WIN32_WINNT=${CURL_TARGET_WINDOWS_VERSION}")
+    set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS "_WIN32_WINNT=${CURL_TARGET_WINDOWS_VERSION}")
     list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_WIN32_WINNT=${CURL_TARGET_WINDOWS_VERSION}")  # Apply to all feature checks
   endif()
 
@@ -540,14 +540,9 @@ if(ENABLE_CURL_MANUAL OR BUILD_LIBCURL_DOCS)
   endif()
 endif()
 
-# Disable warnings on Borland to avoid changing 3rd party code.
-if(BORLAND)
-  string(APPEND CMAKE_C_FLAGS " -w-")
-endif()
-
 # If we are on AIX, do the _ALL_SOURCE magic
 if(CMAKE_SYSTEM_NAME STREQUAL "AIX")
-  add_definitions("-D_ALL_SOURCE")
+  set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS "_ALL_SOURCE")
 endif()
 
 # If we are on Haiku, make sure that the network library is brought in.
@@ -620,6 +615,51 @@ elseif(NOT WIN32 AND NOT APPLE)
   check_library_exists("socket" "connect" "" HAVE_LIBSOCKET)
   if(HAVE_LIBSOCKET)
     set(CURL_LIBS "socket" ${CURL_LIBS})
+  endif()
+endif()
+
+# Check for compression libraries
+# Before other detections and before calling curl_openssl_check_symbol_exists().
+
+set(HAVE_LIBZ OFF)
+curl_dependency_option(CURL_ZLIB ZLIB "ZLIB")
+if(ZLIB_FOUND)
+  set(HAVE_LIBZ ON)
+  # Depend on ZLIB via imported targets. This allows our dependents to
+  # get our dependencies transitively.
+  list(APPEND CURL_LIBS ZLIB::ZLIB)
+  list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "zlib")
+endif()
+
+set(HAVE_BROTLI OFF)
+curl_dependency_option(CURL_BROTLI Brotli "brotli")
+if(BROTLI_FOUND)
+  set(HAVE_BROTLI ON)
+  list(APPEND CURL_LIBS ${BROTLI_LIBRARIES})
+  list(APPEND CURL_LIBDIRS ${BROTLI_LIBRARY_DIRS})
+  list(APPEND LIBCURL_PC_REQUIRES_PRIVATE ${BROTLI_PC_REQUIRES})
+  include_directories(SYSTEM ${BROTLI_INCLUDE_DIRS})
+  link_directories(${BROTLI_LIBRARY_DIRS})
+  if(BROTLI_CFLAGS)
+    string(APPEND CMAKE_C_FLAGS " ${BROTLI_CFLAGS}")
+  endif()
+endif()
+
+set(HAVE_ZSTD OFF)
+curl_dependency_option(CURL_ZSTD Zstd "zstd")
+if(ZSTD_FOUND)
+  if(NOT ZSTD_VERSION VERSION_LESS 1.0.0)
+    set(HAVE_ZSTD ON)
+    list(APPEND CURL_LIBS ${ZSTD_LIBRARIES})
+    list(APPEND CURL_LIBDIRS ${ZSTD_LIBRARY_DIRS})
+    list(APPEND LIBCURL_PC_REQUIRES_PRIVATE ${ZSTD_PC_REQUIRES})
+    include_directories(SYSTEM ${ZSTD_INCLUDE_DIRS})
+    link_directories(${ZSTD_LIBRARY_DIRS})
+    if(ZSTD_CFLAGS)
+      string(APPEND CMAKE_C_FLAGS " ${ZSTD_CFLAGS}")
+    endif()
+  else()
+    message(WARNING "zstd v1.0.0 or newer is required, disabling zstd support.")
   endif()
 endif()
 
@@ -894,51 +934,6 @@ endif()
 
 if(CURL_DEFAULT_SSL_BACKEND AND NOT _valid_default_ssl_backend)
   message(FATAL_ERROR "CURL_DEFAULT_SSL_BACKEND '${CURL_DEFAULT_SSL_BACKEND}' not enabled.")
-endif()
-
-# Keep ZLIB detection after TLS detection,
-# and before calling curl_openssl_check_symbol_exists().
-
-set(HAVE_LIBZ OFF)
-curl_dependency_option(CURL_ZLIB ZLIB "ZLIB")
-if(ZLIB_FOUND)
-  set(HAVE_LIBZ ON)
-  # Depend on ZLIB via imported targets. This allows our dependents to
-  # get our dependencies transitively.
-  list(APPEND CURL_LIBS ZLIB::ZLIB)
-  list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "zlib")
-endif()
-
-set(HAVE_BROTLI OFF)
-curl_dependency_option(CURL_BROTLI Brotli "brotli")
-if(BROTLI_FOUND)
-  set(HAVE_BROTLI ON)
-  list(APPEND CURL_LIBS ${BROTLI_LIBRARIES})
-  list(APPEND CURL_LIBDIRS ${BROTLI_LIBRARY_DIRS})
-  list(APPEND LIBCURL_PC_REQUIRES_PRIVATE ${BROTLI_PC_REQUIRES})
-  include_directories(SYSTEM ${BROTLI_INCLUDE_DIRS})
-  link_directories(${BROTLI_LIBRARY_DIRS})
-  if(BROTLI_CFLAGS)
-    string(APPEND CMAKE_C_FLAGS " ${BROTLI_CFLAGS}")
-  endif()
-endif()
-
-set(HAVE_ZSTD OFF)
-curl_dependency_option(CURL_ZSTD Zstd "zstd")
-if(ZSTD_FOUND)
-  if(NOT ZSTD_VERSION VERSION_LESS 1.0.0)
-    set(HAVE_ZSTD ON)
-    list(APPEND CURL_LIBS ${ZSTD_LIBRARIES})
-    list(APPEND CURL_LIBDIRS ${ZSTD_LIBRARY_DIRS})
-    list(APPEND LIBCURL_PC_REQUIRES_PRIVATE ${ZSTD_PC_REQUIRES})
-    include_directories(SYSTEM ${ZSTD_INCLUDE_DIRS})
-    link_directories(${ZSTD_LIBRARY_DIRS})
-    if(ZSTD_CFLAGS)
-      string(APPEND CMAKE_C_FLAGS " ${ZSTD_CFLAGS}")
-    endif()
-  else()
-    message(WARNING "zstd v1.0.0 or newer is required, disabling zstd support.")
-  endif()
 endif()
 
 # Check symbol in an OpenSSL-like TLS backend.
@@ -1925,7 +1920,7 @@ endif()
 
 include(CMake/OtherTests.cmake)
 
-add_definitions("-DHAVE_CONFIG_H")
+set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS "HAVE_CONFIG_H")
 
 if(WIN32)
   list(APPEND CURL_LIBS "ws2_32" "bcrypt")
@@ -1953,23 +1948,9 @@ if(MSVC)
   # Disable default manifest added by CMake
   string(APPEND CMAKE_EXE_LINKER_FLAGS " -MANIFEST:NO")
 
-  if(CMAKE_C_FLAGS MATCHES "[/-]W[0-4]")
-    string(REGEX REPLACE "[/-]W[0-4]" "-W4" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-  else()
-    string(APPEND CMAKE_C_FLAGS " -W4")
-  endif()
-
   # Use multithreaded compilation on VS2008+
   if(CMAKE_C_COMPILER_ID STREQUAL "MSVC" AND MSVC_VERSION GREATER_EQUAL 1500)
     string(APPEND CMAKE_C_FLAGS " -MP")
-  endif()
-endif()
-
-if(CURL_WERROR)
-  if(MSVC)
-    string(APPEND CMAKE_C_FLAGS " -WX")
-  else()
-    string(APPEND CMAKE_C_FLAGS " -Werror")  # This assumes clang or gcc style options
   endif()
 endif()
 
